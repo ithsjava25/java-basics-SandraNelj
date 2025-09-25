@@ -43,8 +43,11 @@ public class Main {
                 String zone = System.console().readLine();
                 ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone);
                 List <ElpriserAPI.Elpris> priser = elpriserAPI.getPriser(idag, prisklass);
-                priser.forEach(E -> System.out.println()
-                );
+                for (ElpriserAPI.Elpris pris : priser) {
+                    System.out.printf("Tid: %s - %.3f SEK/kWh%n",
+                            pris.timeStart().toLocalTime(),
+                            pris.sekPerKWh());
+                }
             }
             //Se dagens priser per elområde
             case "2" -> {
