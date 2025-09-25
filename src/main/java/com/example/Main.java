@@ -19,6 +19,18 @@ public class Main {
         return sum / priser.size();
     }
 
+    public static Elpris findCheapest (List<Elpris> priser) {
+        return priser.stream()
+                .min((a, b) -> Double.compare(a.sekPerKWh(), b.sekPerKWh()))
+                .orElse(null);
+    }
+
+    public static Elpris findMostExpensive(List<Elpris> priser) {
+        return priser.stream()
+                .max((a, b) -> Double.compare(a.sekPerKWh(), b.sekPerKWh()))
+                .orElse(null);
+    }
+
     public static void main(String[] args) {
         ElpriserAPI elpriserAPI = new ElpriserAPI();
         LocalDate idag = LocalDate.now();
@@ -27,11 +39,10 @@ public class Main {
         System.out.println("Välkommen till översikten för elpriser!");
         System.out.println("Vänligen välj nedan med siffror.");
         System.out.println("------------------------------");
-        System.out.println("1. Se timpris per elområde.");
-        System.out.println("2. Se dagens priser.");
-        System.out.println("3. Se morgondagens priser.");
-        System.out.println("4. Se billigaste / dyraste timme");
-        System.out.println("5. Medelpris (senaste 24 timmarna)");
+        System.out.println("1. Se timpris per elområde - idag.");
+        System.out.println("2. Se timpris per elområde - imorgon.");
+        System.out.println("3. Se billigaste / dyraste timme");
+        System.out.println("4. Medelpris (senaste 24 timmarna)");
         System.out.println("0. Avsluta.");
         System.out.println("------------------------------");
 
@@ -41,37 +52,68 @@ public class Main {
             case "1" -> {
                 System.out.println("1. Vilket elområde (SE1-SE4)?");
                 String zone = System.console().readLine();
-                ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone);
+                ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone.toUpperCase());
                 List <ElpriserAPI.Elpris> priser = elpriserAPI.getPriser(idag, prisklass);
+
+                if (priser.isEmpty()) {
+                    System.out.println("Inga priser hittades för idag i " + prisklass.name() + ".");
+                }
+                else {
+                    System.out.println("Timpriser för " + prisklass + " (" + idag + "):");
+                }
                 for (ElpriserAPI.Elpris pris : priser) {
                     System.out.printf("Tid: %s - %.3f SEK/kWh%n",
                             pris.timeStart().toLocalTime(),
                             pris.sekPerKWh());
                 }
             }
-            //Se dagens priser per elområde
-            case "2" -> {
-                System.out.println("Vilket elområde (SE1-SE4)?");
-                String zone = System.console().readLine();
-                ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone);
-                List<ElpriserAPI.Elpris> priser = elpriserAPI.getPriser(idag, prisklass);
-                System.out.println(priser);
-            }
+
             //Se morgondagens priser per elområde
-            case "3" -> {
+            case "2" -> {
                 LocalDate imorgon = idag.plusDays(1);
                 System.out.print("Vilket elområde (SE1-SE4)? ");
                 String zone = System.console().readLine();
-                ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone);
+                ElpriserAPI.Prisklass prisklass = ElpriserAPI.Prisklass.valueOf(zone.toUpperCase());
                 List<ElpriserAPI.Elpris> priser = elpriserAPI.getPriser(imorgon, prisklass);
-                System.out.println(priser);
+
+                if (priser.isEmpty()) {
+                    System.out.println("Inga priser hittades för imorgon i " + prisklass.name() + ".");
+                }
+                else {
+                    System.out.println("Timpriser för " + prisklass + " (" + imorgon + "):");
+                }
+                for (ElpriserAPI.Elpris pris : priser) {
+                    System.out.printf("Tid: %s - %.3f SEK/kWh%n",
+                            pris.timeStart().toLocalTime(),
+                            pris.sekPerKWh());
+                }
             }
             //Se billigaste / dyraste timme för alla områden
-            case "4" -> {
-                //Billigaste & dyraste timme
+            case "3" -> {
+                for (Prisklass område : Prisklass.values()) {
+                    List<Elpris> priser = elpriserAPI.getPriser(idag, område);
+
+                    Elpris billigaste = findCheapest(priser);
+                    Elpris dyraste = findMostExpensive(priser);
+
+
+                    if (billigaste != null) {
+                        System.out.printf("Billigaste timmen: %s - %s | %.4f SEK/kWh%n",
+                                billigaste.timeStart().toLocalTime(),
+                                billigaste.timeEnd().toLocalTime(),
+                                billigaste.sekPerKWh());
+                    }
+
+                    if (dyraste != null) {
+                        System.out.printf("Dyraste timmen: %s - %s | %.4f SEK/kWh%n",
+                                dyraste.timeStart().toLocalTime(),
+                                dyraste.timeEnd().toLocalTime(),
+                                dyraste.sekPerKWh());
+                    }
+                }
             }
             //Se medelpris per 24 H för alla områden
-            case "5" -> {
+            case "4" -> {
                 //Medelpris de senaste 24 timmarna
                 System.out.println("Vilket elområde (SE1-SE4)?");
                 String zone = System.console().readLine();
