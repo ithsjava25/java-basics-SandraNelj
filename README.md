@@ -48,12 +48,7 @@ Expected Command-Line Arguments:
 * --charging 2h|4h|8h (optional, to find optimal charging windows)
 * --help (optional, to display usage information)
 
-Example Usage Your Program Should Support:
-```shell
-java -cp target/classes com.example.Main --zone SE3 --date 2025-09-04
-java -cp target/classes com.example.Main --zone SE1 --charging 4h
-java -cp target/classes com.example.Main --zone SE2 --date 2025-09-04 --sorted
-java -cp target/classes com.example.Main --help
+
 ```
 
 ## 3. Run
