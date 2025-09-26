@@ -25,7 +25,7 @@ public class Main {
 
     // Medelpris
     private static double meanPrice(List<Elpris> priser) {
-        return priser.stream().mapToDouble(Elpris::sekPerKWh).average().orElse(0.0);
+        return priser.stream().mapToDouble(p -> p.sekPerKWh() * 100).average().orElse(0.0);
     }
 
     // Hitta billigaste laddningsfönster
@@ -55,7 +55,7 @@ public class Main {
             System.out.printf("Tid: %s = %.0f öre/kWh%n",
                     p.timeStart().toLocalTime(), p.sekPerKWh() * 100);
         }
-        System.out.printf("Medelpris för fönstret: %.0f öre/kWh%n", (minSum / timmar) * 100);
+        System.out.printf("Medelpris: %.0f öre/kWh%n", minSum / timmar);
     }
 
     public static void main(String[] args) {
@@ -127,9 +127,9 @@ public class Main {
                 p.timeStart().toLocalTime(), p.sekPerKWh() * 100));
 
         // Statistik
-        double mean = meanPrice(priser) * 100;
-        double min = priser.stream().mapToDouble(Elpris::sekPerKWh).min().orElse(0.0) * 100;
-        double max = priser.stream().mapToDouble(Elpris::sekPerKWh).max().orElse(0.0) * 100;
+        double mean = meanPrice(priser);
+        double min = priser.stream().mapToDouble(p -> p.sekPerKWh() * 100).min().orElse(0.0);
+        double max = priser.stream().mapToDouble(p -> p.sekPerKWh() * 100).max().orElse(0.0);
 
         System.out.printf("%nMedelpris: %.0f öre/kWh%n", mean);
         System.out.printf("Lägsta timpris: %.0f öre/kWh%n", min);
