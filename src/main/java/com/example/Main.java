@@ -51,13 +51,10 @@ public class Main {
 
         // Hämta dagens priser
         List<Elpris> priser = new ArrayList<>(api.getPriser(date, prisklass));
-        priser.addAll(api.getPriser(date.plusDays(1), prisklass));
-
-        // Hämta morgondagens priser om efter kl 13
+        //Om kl efter 13.00 hämta morgondagens priser
         if (ZonedDateTime.now().getHour() >= 13) {
             priser.addAll(api.getPriser(date.plusDays(1), prisklass));
         }
-
         if (priser.isEmpty()) {
             System.out.println("Inga priser tillgängliga.");
             return;
@@ -71,26 +68,34 @@ public class Main {
         }
 
         // --- Utskrift av alla priser ---
-        Map<Integer, List<Elpris>> perTimme = new TreeMap<>();
+        if (flags.containsKey("--sorted")) {
+            for (Elpris pris : priser) {
+                int start = pris.timeStart().getHour();
+                int end = pris.timeEnd().getHour();
+                System.out.printf("%02d-%02d %.2f öre%n",
+                        start, end, pris.sekPerKWh() * 100.0);
+            }
+        } else {
+            Map<Integer, List<Elpris>> perTimme = new TreeMap<>();
+            for (Elpris pris : priser) {
+                int timme = pris.timeStart().getHour();
+                perTimme.computeIfAbsent(timme, k -> new ArrayList<>()).add(pris);
+            }
 
-        for (Elpris pris : priser) {
-            int timme = pris.timeStart().getHour();
-            perTimme.computeIfAbsent(timme, k -> new ArrayList<>()).add(pris);
-        }
+            for (var entry : perTimme.entrySet()) {
+                int timme = entry.getKey();
+                List<Elpris> kvart = entry.getValue();
 
-        for (var entry : perTimme.entrySet()) {
-            int timme = entry.getKey();
-            List<Elpris> kvart = entry.getValue();
+                double snittSek = kvart.stream()
+                        .mapToDouble(Elpris::sekPerKWh)
+                        .average()
+                        .orElse(0.0);
 
-            double snittSek = kvart.stream()
-                    .mapToDouble(Elpris::sekPerKWh)
-                    .average()
-                    .orElse(0.0);
-
-            System.out.printf("%02d-%02d %.2f öre%n",
-                    timme,
-                    (timme + 1) % 24,
-                    snittSek * 100.0);
+                System.out.printf("%02d-%02d %.2f öre%n",
+                        timme,
+                        (timme + 1) % 24,
+                        snittSek * 100.0);
+            }
         }
 
         // --- Medelpris ---
