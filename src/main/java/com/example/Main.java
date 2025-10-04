@@ -7,246 +7,179 @@ import com.example.api.ElpriserAPI.Prisklass;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 
+
+/**
+ * Main-program för att hämta elpriser, skriva ut statistik och beräkna laddningsfönster.
+ */
 public class Main {
 
-    private static void printHelp() {
-        System.out.println("""
-                Usage: java Main --zone SE1|SE2|SE3|SE4 [options]
-                
-                Options:
-                  --zone <SE1|SE2|SE3|SE4>   (required) Elområde
-                  --date YYYY-MM-DD          (optional) Datum, standard är dagens datum
-                  --sorted                   (optional) Sorterar priser fallande (dyrast först)
-                  --charging 2h|4h|8h        (optional) Hittar billigaste laddningsfönster
-                  --help                     (optional) Visar denna hjälptext
-                """);
-    }
-
-    // Metod medelpris
-    private static double meanPrice(List<Elpris> priser) {
-        //returnera medelpris i öre/kWh
-        return priser.stream().mapToDouble(p -> p.sekPerKWh() * 100)
-                .average()
-                .orElse(0.0);
-    }
-
-    private static int findEarliestIndexOfMin(List<Elpris> priser) {
-        double min = Double.POSITIVE_INFINITY;
-        int index = -1;
-        for (int i = 0; i < priser.size(); i++) {
-            double v = priser.get(i).sekPerKWh();
-            if (v < min) {
-                min = v;
-                index = i;
-            }
-        }
-        return index;
-    }
-
-    private static int findEarliestIndexOfMax(List<Elpris> priser) {
-        double max = Double.NEGATIVE_INFINITY;
-        int index = -1;
-        for (int i = 0; i < priser.size(); i++) {
-            double v = priser.get(i).sekPerKWh();
-            if (v > max) {
-                max = v;
-                index = i;
-            }
-        }
-        return index;
-    }
-
-    // Metod hitta billigaste laddningsfönster
-    private static void findChargingWindow(List<Elpris> priser, int timmar, int startIndex) {
-        if (startIndex >= priser.size()) {
-            System.out.println("Inga framtida timmar tillgängliga för laddning.");
-            return;
-        }
-        if (priser.size() - startIndex < timmar) {
-            System.out.println("Inte tillräckligt många timmar framåt för ett " + timmar + "h-fönster");
-            return;
-        }
-
-        double minSum = Double.POSITIVE_INFINITY;
-        int bestStart = -1;
-
-        for (int i = startIndex; i <= priser.size() - timmar; i++) {
-            double sum = 0.0;
-            for (int j = i; j < i + timmar; j++) sum += priser.get(j).sekPerKWh();
-            if (sum < minSum) {
-                minSum = sum;
-                bestStart = i;
-            }
-        }
-
-        System.out.printf("Billigaste laddningsfönster (%dh):%n", timmar);
-        for (int i = bestStart; i < bestStart + timmar; i++) {
-            Elpris p = priser.get(i);
-            System.out.printf("Tid: %s = %.0f öre/kWh%n",
-                    p.timeStart().withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(),
-                    p.sekPerKWh() * 100.0);
-        }
-        System.out.printf("Medelpris för fönstret: %.0f öre/kWh%n", (minSum / timmar) * 100.0);
-    }
-
     public static void main(String[] args) {
-        if (args.length == 0 || Arrays.asList(args).contains("--help")) {
+        Map<String, String> flags = parseArgs(args);
+
+        // Hantera --help
+        if (flags.containsKey("--help")) {
             printHelp();
             return;
         }
 
-        Map<String, String> flags = new HashMap<>();
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].startsWith("--")) {
-                if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
-                    flags.put(args[i], args[i + 1]);
-                } else {
-                    flags.put(args[i], "true");
-                }
-            }
-        }
-        Prisklass prisklass = null;
+        // Hantera zon
         if (!flags.containsKey("--zone")) {
-            Scanner scanner = new Scanner(System.in);
-            while (prisklass == null) {
-                System.out.println("Ange elområde (SE1, SE2, SE3, SE4): ");
-                String line = scanner.nextLine().trim().toUpperCase();
-                try {
-                    prisklass = Prisklass.valueOf(line);
-                } catch (Exception e) {
-                    System.out.println("Ogiltigt område - försök igen!");
-                }
-            }
-        } else {
-            try {
-                prisklass = Prisklass.valueOf(flags.get("--zone").toUpperCase());
-            } catch (IllegalArgumentException e) {
-                System.out.println("Ogiltigt område - ange SE1, SE2, SE3, SE4");
-                return;
-            }
+            System.out.println("Du måste ange en zon med --zone SE1|SE2|SE3|SE4");
+            return;
+        }
+        Prisklass prisklass;
+        try {
+            prisklass = Prisklass.valueOf(flags.get("--zone"));
+        } catch (IllegalArgumentException e) {
+            System.out.println("Ogiltig zon. Tillåtna värden är SE1, SE2, SE3 eller SE4.");
+            return;
         }
 
-        // Datum (default = idag)
-        LocalDate date = LocalDate.now();
-        if (flags.containsKey("--date")) {
-            try {
-                date = LocalDate.parse(flags.get("--date"));
-            } catch (Exception e) {
-                System.out.println("Ogiltigt datumformat. Använd YYYY-MM-DD.");
-                return;
-            }
+        // Hantera datum (default = idag)
+        LocalDate date;
+        try {
+            date = flags.containsKey("--date")
+                    ? LocalDate.parse(flags.get("--date"))
+                    : LocalDate.now();
+        } catch (Exception e) {
+            System.out.println("Ogiltigt datum, Använd formatet YYYY-MM-DD.");
+            return;
         }
 
-        // Hämta priser för dagens datum samt morgondagen
         ElpriserAPI api = new ElpriserAPI();
-        List<Elpris> combined = new ArrayList<>();
-        List<Elpris> day1 = api.getPriser(date, prisklass);
-        if (!day1.isEmpty()) combined.addAll(day1);
 
-        List<Elpris> day2 = api.getPriser(date.plusDays(1), prisklass);
-        if (!day2.isEmpty()) {
-            System.out.println("Prisdata för " + date.plusDays(1) + " finns och inkluderas.");
-            combined.addAll(day2);
+        // Hämta dagens priser
+        List<Elpris> priser = new ArrayList<>(api.getPriser(date, prisklass));
+        priser.addAll(api.getPriser(date.plusDays(1), prisklass));
+
+        // Hämta morgondagens priser om efter kl 13
+        if (ZonedDateTime.now().getHour() >= 13) {
+            priser.addAll(api.getPriser(date.plusDays(1), prisklass));
         }
-        if (combined.isEmpty()) {
-            System.out.println("Inga priser hittades för " + date + " i " + prisklass + ".");
+
+        if (priser.isEmpty()) {
+            System.out.println("Inga priser tillgängliga.");
             return;
         }
 
-        //Sortering
-        List<Elpris> chronological = combined.stream()
-                .sorted(Comparator.comparing(Elpris::timeStart))
-                .collect(Collectors.toList());
-
-        //Aktuell starttid
-        ZonedDateTime now = ZonedDateTime.now();
-        ZonedDateTime startThreshold = now.truncatedTo(ChronoUnit.HOURS);
-        if (now.getMinute() != 0 || now.getSecond() != 0 || now.getNano() != 0) {
-            startThreshold = startThreshold.plusHours(1);
-        }
-        int startIndex = 0;
-        while (startIndex < chronological.size()
-                && chronological.get(startIndex).timeStart().toInstant().isBefore(startThreshold.toInstant())) {
-            startIndex++;
-        }
-
-        int required = 24;
-        List<Elpris> window24 = chronological.subList(startIndex, Math.min(startIndex + required, chronological.size()));
-
-
-        if (window24.isEmpty()) {
-            System.out.println("Ingen prisdata efter nuvarande tidpunkt (" + startThreshold + ").");
-            return;
-        }
-
-
-        double mean24 = meanPrice(window24);
-        // Sortering
+        // Sortera om användaren vill
         if (flags.containsKey("--sorted")) {
-            chronological = chronological.stream()
-                    .sorted(Comparator.comparingDouble(Elpris::sekPerKWh).reversed())
-                    .collect(Collectors.toList());
+            priser.sort(Comparator.comparingDouble(Elpris::sekPerKWh).reversed());
         } else {
-            chronological = chronological.stream()
-                    .sorted(Comparator.comparing(Elpris::timeStart))
-                    .collect(Collectors.toList());
+            priser.sort(Comparator.comparing(Elpris::timeStart));
         }
 
-        // Hitta billigaste och dyraste timme (tidigaste vid lika pris)
-        int minIdx = findEarliestIndexOfMin(window24);
-        int maxIdx = findEarliestIndexOfMax(window24);
+        // --- Utskrift av alla priser ---
+        Map<Integer, List<Elpris>> perTimme = new TreeMap<>();
 
-        //Utskrift
-
-        List<Elpris> displayList;
-        if (flags.containsKey("--sorted")) {
-            displayList = chronological.stream()
-                    .sorted(Comparator.comparingDouble(Elpris::sekPerKWh).reversed())
-                    .collect(Collectors.toList());
-        } else {
-            displayList = chronological; // kronologisk
+        for (Elpris pris : priser) {
+            int timme = pris.timeStart().getHour();
+            perTimme.computeIfAbsent(timme, k -> new ArrayList<>()).add(pris);
         }
 
+        for (var entry : perTimme.entrySet()) {
+            int timme = entry.getKey();
+            List<Elpris> kvart = entry.getValue();
 
-        System.out.println("Elpriser i " + prisklass + " för " + date + ":");
-        displayList.forEach(p -> System.out.printf("Tid: %s = %.0f öre/kWh%n",
-                p.timeStart().withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(), p.sekPerKWh() * 100.0));
+            double snittSek = kvart.stream()
+                    .mapToDouble(Elpris::sekPerKWh)
+                    .average()
+                    .orElse(0.0);
 
-
-        System.out.println();
-        System.out.printf("Medelpris (nästa %d timmar): %.0f öre/kWh%n", window24.size(), mean24);
-
-
-        if (minIdx >= 0) {
-            Elpris pmin = window24.get(minIdx);
-            System.out.printf("Billigaste timme: %s = %.0f öre/kWh%n",
-                    pmin.timeStart().withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(), pmin.sekPerKWh() * 100.0);
-        }
-        if (maxIdx >= 0) {
-            Elpris pmax = window24.get(maxIdx);
-            System.out.printf("Dyraste timme: %s = %.0f öre/kWh%n",
-                    pmax.timeStart().withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime(), pmax.sekPerKWh() * 100.0);
+            System.out.printf("%02d-%02d %.2f öre%n",
+                    timme,
+                    (timme + 1) % 24,
+                    snittSek * 100.0);
         }
 
+        // --- Medelpris ---
+        double medelpris = priser.stream()
+                .mapToDouble(Elpris::sekPerKWh)
+                .average()
+                .orElse(0.0);
 
-        // Charging
+        System.out.printf("Medelpris: %.2f SEK/kWh%n", medelpris);
+        System.out.printf("Medelpris: %.2f öre%n", medelpris * 100);
+
+        // --- Billigaste och dyraste timme ---
+        Elpris billigast = priser.stream().min(Comparator.comparingDouble(Elpris::sekPerKWh)).orElseThrow();
+        Elpris dyrast = priser.stream().max(Comparator.comparingDouble(Elpris::sekPerKWh)).orElseThrow();
+
+        System.out.printf("lägsta pris: %02d:00–%02d:00 → %.2f SEK/kWh%n",
+                billigast.timeStart().getHour(),
+                billigast.timeEnd().getHour(),
+                billigast.sekPerKWh());
+
+        System.out.printf("högsta pris: %02d:00–%02d:00 → %.2f SEK/kWh%n",
+                dyrast.timeStart().getHour(),
+                dyrast.timeEnd().getHour(),
+                dyrast.sekPerKWh());
+
+        // --- Optimal laddning ---
         if (flags.containsKey("--charging")) {
-            String val = flags.get("--charging").toLowerCase().replace("h", "");
-            try {
-                int timmar = Integer.parseInt(val);
-                if (timmar != 2 && timmar != 4 && timmar != 8) {
-                    System.out.println("Ogiltigt värde för --charging. Använd 2h, 4h eller 8h.");
-                } else {
-                // findChargingWindow listar fönstret och startIndex anger varifrån vi får börja
-                    findChargingWindow(chronological, timmar, startIndex);
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("Ogiltigt värde för --charging. Använd 2h, 4h eller 8h.");
-            }
+            String dur = flags.get("--charging");
+            int timmar = switch (dur) {
+                case "2h" -> 2;
+                case "4h" -> 4;
+                case "8h" -> 8;
+                default -> throw new IllegalArgumentException("Endast 2h, 4h, 8h är tillåtna.");
+            };
+
+            List<Elpris> window = findBestWindow(priser, timmar);
+            double snitt = window.stream().mapToDouble(Elpris::sekPerKWh).average().orElse(0.0);
+
+            double snittOre = snitt * 100.0;
+
+            System.out.printf("Påbörja laddning kl %02d:00%n", window.get(0).timeStart().getHour());
+            System.out.printf("Medelpris för fönster: %.2f öre%n", snittOre);
         }
     }
+
+    // Sliding Window för att hitta bästa laddningsfönstret
+    private static List<Elpris> findBestWindow(List<Elpris> priser, int timmar) {
+        double minSum = Double.MAX_VALUE;
+        int startIndex = 0;
+        for (int i = 0; i <= priser.size() - timmar; i++) {
+            double sum = 0;
+            for (int j = 0; j < timmar; j++) {
+                sum += priser.get(i + j).sekPerKWh();
+            }
+            if (sum < minSum) {
+                minSum = sum;
+                startIndex = i;
+            }
+        }
+        return priser.subList(startIndex, startIndex + timmar);
+    }
+
+    // Enkel parser för argument
+    private static Map<String, String> parseArgs(String[] args) {
+        Map<String, String> map = new HashMap<>();
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (arg.startsWith("--")) {
+                if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+                    map.put(arg, args[i + 1]);
+                    i++;
+                } else {
+                    map.put(arg, "true");
+                }
+            }
+        }
+        return map;
+    }
+
+    // Hjälptext
+    private static void printHelp() {
+        System.out.println("""
+                Användning: java -jar app.jar --zone SE1|SE2|SE3|SE4 [options]
+                Options:
+                  --date YYYY-MM-DD    Ange datum (default = idag)
+                  --sorted             Sortera priser fallande
+                  --charging 2h|4h|8h  Hitta billigaste laddningsfönstret
+                  --help               Visa denna hjälp
+                """);
+    }
 }
+
