@@ -1,7 +1,6 @@
 //java -cp C:\Users\sandr\IdeaProjects\java-basics-SandraNelj\target\classes com.example.Main
-//java -cp target/classes com.example.Main
-package com.example;
 
+package com.example;
 import com.example.api.ElpriserAPI;
 import com.example.api.ElpriserAPI.Elpris;
 import com.example.api.ElpriserAPI.Prisklass;
@@ -57,7 +56,7 @@ public class Main {
             return;
         }
 
-        // Sortera om användaren vill
+        // Sortering
         if (flags.containsKey("--sorted")) {
             priser.sort(Comparator.comparingDouble(Elpris::sekPerKWh).reversed());
         } else {
@@ -108,12 +107,12 @@ public class Main {
         Elpris billigast = priser.stream().min(Comparator.comparingDouble(Elpris::sekPerKWh)).orElseThrow();
         Elpris dyrast = priser.stream().max(Comparator.comparingDouble(Elpris::sekPerKWh)).orElseThrow();
 
-        System.out.printf("lägsta pris: %02d:00–%02d:00 → %.2f SEK/kWh%n",
+        System.out.printf("lägsta pris: %02d:00-%02d:00 -> %.2f SEK/kWh%n",
                 billigast.timeStart().getHour(),
                 billigast.timeEnd().getHour(),
                 billigast.sekPerKWh());
 
-        System.out.printf("högsta pris: %02d:00–%02d:00 → %.2f SEK/kWh%n",
+        System.out.printf("högsta pris: %02d:00-%02d:00 -> %.2f SEK/kWh%n",
                 dyrast.timeStart().getHour(),
                 dyrast.timeEnd().getHour(),
                 dyrast.sekPerKWh());
