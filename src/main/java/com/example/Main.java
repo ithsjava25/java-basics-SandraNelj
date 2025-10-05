@@ -1,11 +1,11 @@
 //java -cp C:\Users\sandr\IdeaProjects\java-basics-SandraNelj\target\classes com.example.Main
 //java -cp target/classes com.example.Main
 package com.example;
+
 import com.example.api.ElpriserAPI;
 import com.example.api.ElpriserAPI.Elpris;
 import com.example.api.ElpriserAPI.Prisklass;
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
 import java.util.*;
 
 
@@ -76,7 +76,7 @@ public class Main {
             Map<Integer, List<Elpris>> perTimme = new TreeMap<>();
             for (Elpris pris : priser) {
                 int timme = pris.timeStart().getHour();
-                perTimme.computeIfAbsent(timme, k -> new ArrayList<>()).add(pris);
+                perTimme.computeIfAbsent(timme, _ -> new ArrayList<>()).add(pris);
             }
 
             for (var entry : perTimme.entrySet()) {
@@ -133,7 +133,7 @@ public class Main {
 
             double snittOre = snitt * 100.0;
 
-            System.out.printf("Påbörja laddning kl %02d:00%n", window.get(0).timeStart().getHour());
+            System.out.printf("Påbörja laddning kl %02d:00%n", window.getFirst().timeStart().getHour());
             System.out.printf("Medelpris för fönster: %.2f öre%n", snittOre);
         }
     }
