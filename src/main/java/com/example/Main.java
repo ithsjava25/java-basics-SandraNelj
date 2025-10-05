@@ -51,10 +51,7 @@ public class Main {
 
         // Hämta dagens priser
         List<Elpris> priser = new ArrayList<>(api.getPriser(date, prisklass));
-        //Om kl efter 13.00 hämta morgondagens priser
-        if (ZonedDateTime.now().getHour() >= 13) {
             priser.addAll(api.getPriser(date.plusDays(1), prisklass));
-        }
         if (priser.isEmpty()) {
             System.out.println("Inga priser tillgängliga.");
             return;
